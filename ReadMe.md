@@ -1,7 +1,15 @@
 # Celeste 64: Fragments of the Mountain
+
 This is the source code and general information for *Celeste 64: Fragments of the Mountain*, a game made by the original Celeste developers in under 2 weeks for Celeste's 6th Anniversary. We haven't done a lot of 3D development so much of this is not very optimized, it's coded in libraries mostly intended for 2D games, and we put it all together very, very quickly. Consider this similar to a weekend jam game, so experiment and learn at your own risk!  
 
 You can find prebuilt version of the game on [itch.io](https://maddymakesgamesinc.itch.io/celeste64).
+
+## WASM port details
+1. Install arch packages `dotnet-host dotnet-runtime dotnet-sdk dotnet-targeting-pack aspnet-runtime`
+2. Clone Foster git in the parent directory.
+3. Apply Foster.patch
+4. Run `sudo dotnet workload restore` in this dir
+5. Run `dotnet run -v d` or `dotnet publish -v d`
 
 ### Installation
  - You need [.NET 8.0](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)
