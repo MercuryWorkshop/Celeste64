@@ -19,11 +19,14 @@ public class Startup : Scene
 		{
 			var saveFile = Path.Join(App.UserPath, Save.FileName);
 
+            Console.WriteLine("debug 0");
 			if (File.Exists(saveFile))
 				Save.Instance = Save.Deserialize(File.ReadAllText(saveFile)) ?? new();
 			else
 				Save.Instance = new();
+            Console.WriteLine("debug 1");
 			Save.Instance.SyncSettings();
+            Console.WriteLine("debug 2");
 		}
 
 		// make sure the active language is ready for use,
@@ -58,6 +61,7 @@ public class Startup : Scene
 			
 			Controls.Load(controls);
 		}
+        Console.WriteLine("debug 3");
 
 		// enter game
 		//Assets.Levels[0].Enter(new AngledWipe());
@@ -68,6 +72,7 @@ public class Startup : Scene
 			ToBlack = null,
 			FromBlack = new AngledWipe(),
 		});
+        Console.WriteLine("debug 4");
 	}
 
     public override void Update()

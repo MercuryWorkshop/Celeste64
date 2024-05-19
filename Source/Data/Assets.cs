@@ -60,7 +60,6 @@ public static class Assets
 		var images = new ConcurrentBag<(string, Image)>();
 		var models = new ConcurrentBag<(string, SkinnedTemplate)>();
 		var langs = new ConcurrentBag<Language>();
-		var tasks = new List<Task>();
 
 		// load map files
 		{
@@ -71,11 +70,8 @@ public static class Assets
 				if (name.StartsWith("autosave", StringComparison.OrdinalIgnoreCase))
 					continue;
 
-				tasks.Add(Task.Run(() =>
-				{
-					var map = new Map(name, file);
-					maps.Add(map);
-				}));
+                var map = new Map(name, file);
+                maps.Add(map);
 			}
 		}
 
@@ -84,12 +80,9 @@ public static class Assets
 		foreach (var file in Directory.EnumerateFiles(texturesPath, "*.png", SearchOption.AllDirectories))
 		{
 			var name = GetResourceName(texturesPath, file);
-			tasks.Add(Task.Run(() =>
-			{
-				var img = new Image(file);
-				img.Premultiply();
-				images.Add((name, img));
-			}));
+            var img = new Image(file);
+            img.Premultiply();
+            images.Add((name, img));
 		}
 
 		// load faces
@@ -97,12 +90,9 @@ public static class Assets
 		foreach (var file in Directory.EnumerateFiles(facesPath, "*.png", SearchOption.AllDirectories))
 		{
 			var name = $"faces/{GetResourceName(facesPath, file)}";
-			tasks.Add(Task.Run(() =>
-			{
-				var img = new Image(file);
-				img.Premultiply();
-				images.Add((name, img));
-			}));
+            var img = new Image(file);
+            img.Premultiply();
+            images.Add((name, img));
 		}
 
 		// load glb models
@@ -111,24 +101,18 @@ public static class Assets
 		{
 			var name = GetResourceName(modelPath, file);
 
-			tasks.Add(Task.Run(() =>
-			{
-				var input = SharpGLTF.Schema2.ModelRoot.Load(file);
-				var model = new SkinnedTemplate(input);
-				models.Add((name, model));
-			}));
+            var input = SharpGLTF.Schema2.ModelRoot.Load(file);
+            var model = new SkinnedTemplate(input);
+            models.Add((name, model));
 		}
 
 		// load languages
 		var textPath = Path.Join(ContentPath, "Text");
 		foreach (var file in Directory.EnumerateFiles(textPath, "*.json", SearchOption.AllDirectories))
 		{
-			tasks.Add(Task.Run(() =>
-			{
-				var data = File.ReadAllText(file);
-				if (JsonSerializer.Deserialize(data, LanguageContext.Default.Language) is {} lang)
-					langs.Add(lang);
-			}));
+            var data = File.ReadAllText(file);
+            if (JsonSerializer.Deserialize(data, LanguageContext.Default.Language) is {} lang)
+                langs.Add(lang);
 		}
 
 		// load audio
@@ -184,8 +168,6 @@ public static class Assets
 
 		// wait for tasks to finish
 		{
-			foreach (var task in tasks)
-				task.Wait();
 			foreach (var (name, img) in images)
 				Textures.Add(name, new Texture(img) { Name = name });
 			foreach (var map in maps)

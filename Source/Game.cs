@@ -240,6 +240,7 @@ public class Game : Module
 		}
 		else if (transitionStep == TransitionStep.None)
 		{
+            Console.WriteLine("debug 6");
 			// handle audio beat events on main thread
 			if (audioBeatCounterEvent)
 			{

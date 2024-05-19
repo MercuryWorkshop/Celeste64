@@ -36,6 +36,7 @@ public class Titlescreen : Scene
 		{
 			App.Exit();
 		}
+        Console.WriteLine("debug 5");
     }
 
     public override void Render(Target target)
@@ -75,7 +76,10 @@ public class Titlescreen : Scene
 			CutoutMode = false,
 		};
 
+        Console.WriteLine("debug 6");
+
 		model.Render(ref state);
+        Console.WriteLine("debug 7");
 
 		// overlay
 		{
@@ -115,5 +119,6 @@ public class Titlescreen : Scene
 			batch.Render(target);
 			batch.Clear();
 		}
+        Console.WriteLine("debug 8");
     }
 }

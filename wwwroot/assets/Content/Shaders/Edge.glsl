@@ -1,5 +1,6 @@
 VERTEX:
-#version 330
+#version 300 es
+precision mediump float;
 
 uniform mat4 u_matrix;
 layout(location=0) in vec2 a_position;
@@ -18,8 +19,9 @@ void main(void)
 }
 
 FRAGMENT:
-#version 330
+#version 300 es
 #include Partials/Methods.gl
+precision mediump float;
 
 uniform sampler2D u_texture;
 uniform sampler2D u_depth;

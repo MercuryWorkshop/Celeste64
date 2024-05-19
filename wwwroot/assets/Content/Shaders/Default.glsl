@@ -1,6 +1,7 @@
 VERTEX:
-#version 330
+#version 300 es
 #include Partials/Methods.gl
+precision mediump float;
 
 uniform mat4 u_mvp;
 uniform mat4 u_model;
@@ -39,8 +40,9 @@ void main(void)
 }
 
 FRAGMENT:
-#version 330
+#version 300 es
 #include Partials/Methods.gl
+precision mediump float;
 
 uniform sampler2D u_texture;
 uniform vec4      u_color;
@@ -71,8 +73,8 @@ void main(void)
 	//	discard;
 
 	float depth = LinearizeDepth(gl_FragCoord.z, u_near, u_far);
-	float fall = Map(v_world.z, 50, 0, 0, 1);
-	float fade = Map(depth, 0.9, 1, 1, 0);
+	float fall = Map(v_world.z, 50.0, 0.0, 0.0, 1.0);
+	float fade = Map(depth, 0.9, 1.0, 1.0, 0.0);
 	vec3  col = src.rgb;
 
 	// apply depth values
@@ -84,7 +86,7 @@ void main(void)
 
 	// shadow
 	float darken = max(0.0, dot(v_normal, u_sun));
-	col = mix(col, vec3(4/255.0, 27/255.0, 44/255.0), darken * 0.80 * u_effects);
+	col = mix(col, vec3(4.0/255.0, 27.0/255.0, 44.0/255.0), darken * 0.80 * u_effects);
 
 	// passthrough mode
 	col = mix(col, u_silhouette_color.rgb, u_silhouette);
