@@ -1,0 +1,751 @@
+diff --git a/Framework/Graphics/Graphics.cs b/Framework/Graphics/Graphics.cs
+index dbf1ad5..e16afd9 100644
+--- a/Framework/Graphics/Graphics.cs
++++ b/Framework/Graphics/Graphics.cs
+@@ -53,7 +53,7 @@ namespace Foster.Framework
+ 		/// <summary>
+ 		/// Clears the Back Buffer
+ 		/// </summary>
+-		public static unsafe void Clear(Color color, float depth, int stencil, ClearMask mask)
++		public static void Clear(Color color, float depth, int stencil, ClearMask mask)
+ 		{
+ 			Platform.FosterClearCommand clear = new()
+ 			{
+@@ -64,10 +64,10 @@ namespace Foster.Framework
+ 				stencil = stencil,
+ 				mask = mask
+ 			};
+-			Platform.FosterClear(&clear);
++			Platform.FosterClear(ref clear);
+ 		}
+ 
+-		public static unsafe void Submit(in DrawCommand command)
++		public static void Submit(in DrawCommand command)
+ 		{
+ 			IntPtr shader = IntPtr.Zero;
+ 			if (command.Material != null && command.Material.Shader != null && !command.Material.Shader.IsDisposed)
+@@ -100,23 +100,17 @@ namespace Foster.Framework
+ 
+ 			if (command.Viewport.HasValue)
+ 			{
+-				fc.viewport = new()
+-				{
+-					x = command.Viewport.Value.X,
+-					y = command.Viewport.Value.Y,
+-					w = command.Viewport.Value.Width,
+-					h = command.Viewport.Value.Height
++				fc.viewport = new () { 
++					x = command.Viewport.Value.X, y = command.Viewport.Value.Y, 
++					w = command.Viewport.Value.Width, h = command.Viewport.Value.Height 
+ 				};
+ 			}
+ 
+ 			if (command.Scissor.HasValue)
+ 			{
+-				fc.scissor = new()
+-				{
+-					x = command.Scissor.Value.X,
+-					y = command.Scissor.Value.Y,
+-					w = command.Scissor.Value.Width,
+-					h = command.Scissor.Value.Height
++				fc.scissor = new () { 
++					x = command.Scissor.Value.X, y = command.Scissor.Value.Y, 
++					w = command.Scissor.Value.Width, h = command.Scissor.Value.Height 
+ 				};
+ 			}
+ 
+@@ -124,7 +118,7 @@ namespace Foster.Framework
+ 			command.Material?.Apply();
+ 
+ 			// perform draw
+-			Platform.FosterDraw(&fc);
++			Platform.FosterDraw(ref fc);
+ 		}
+ 
+ 		internal static class Resources
+@@ -140,7 +134,7 @@ namespace Foster.Framework
+ 			/// </summary>
+ 			public static void RegisterAllocated(IResource managed, IntPtr handle, FreeFn free)
+ 			{
+-				Allocated alloc = new(new(managed), handle, free);
++				Allocated alloc = new (new(managed), handle, free);
+ 				lock (allocated)
+ 					allocated.Add(handle, alloc);
+ 			}
+diff --git a/Framework/Graphics/Mesh.cs b/Framework/Graphics/Mesh.cs
+index 7d8a396..5033214 100644
+--- a/Framework/Graphics/Mesh.cs
++++ b/Framework/Graphics/Mesh.cs
+@@ -84,7 +84,7 @@ public class Mesh : IResource
+ 	/// <summary>
+ 	/// Uploads the Index data to the Mesh.
+ 	/// </summary>
+-	public void SetIndices(nint data, int count, IndexFormat format)
++	public unsafe void SetIndices(IntPtr data, int count, IndexFormat format)
+ 	{
+ 		if (IsDisposed)
+ 			throw new Exception("Resource is Disposed");
+@@ -96,9 +96,9 @@ public class Mesh : IResource
+ 			IndexFormat = format;
+ 			Platform.FosterMeshSetIndexFormat(resource, format);
+ 		}
+-
++		
+ 		Platform.FosterMeshSetIndexData(
+-			resource,
++			resource, 
+ 			data,
+ 			GetIndexFormatSize(format) * count,
+ 			0
+@@ -126,7 +126,7 @@ public class Mesh : IResource
+ 	/// The Mesh must already be able to fit this with a previous call to SetIndices.
+ 	/// This also cannot modify the existing Index Format.
+ 	/// </summary>
+-	public void SetSubIndices(int offset, nint data, int count)
++	public unsafe void SetSubIndices(int offset, IntPtr data, int count)
+ 	{
+ 		if (IsDisposed)
+ 			throw new Exception("Resource is Disposed");
+@@ -136,11 +136,11 @@ public class Mesh : IResource
+ 
+ 		if (offset + count > IndexCount)
+ 			throw new Exception("SetSubIndices is out of range of the existing Index Buffer");
+-
++		
+ 		var size = GetIndexFormatSize(IndexFormat.Value);
+ 
+ 		Platform.FosterMeshSetIndexData(
+-			resource,
++			resource, 
+ 			data,
+ 			size * count,
+ 			size * offset
+@@ -188,9 +188,9 @@ public class Mesh : IResource
+ 		if (!VertexFormat.HasValue || VertexFormat.Value != format)
+ 		{
+ 			VertexFormat = format;
+-
++			
+ 			var elements = stackalloc Platform.FosterVertexElement[format.Elements.Length];
+-			for (int i = 0; i < format.Elements.Length; i++)
++			for (int i = 0; i < format.Elements.Length; i ++)
+ 			{
+ 				elements[i].index = format.Elements[i].Index;
+ 				elements[i].type = format.Elements[i].Type;
+diff --git a/Framework/Graphics/ShaderDefaults.cs b/Framework/Graphics/ShaderDefaults.cs
+index bd18a2b..d38d768 100644
+--- a/Framework/Graphics/ShaderDefaults.cs
++++ b/Framework/Graphics/ShaderDefaults.cs
+@@ -7,7 +7,9 @@ internal static class ShaderDefaults
+ 		[Renderers.OpenGL] = new()
+ 		{
+ 			VertexShader =
+-				@"#version 330
++				@"#version 300 es
++				precision mediump float;
++
+ 				uniform mat4 u_matrix;
+ 				layout(location=0) in vec2 a_position;
+ 				layout(location=1) in vec2 a_tex;
+@@ -24,7 +26,9 @@ internal static class ShaderDefaults
+ 					v_type = a_type;
+ 				}",
+ 			FragmentShader =
+-				@"#version 330
++				@"#version 300 es
++				precision mediump float;
++
+ 				uniform sampler2D u_texture;
+ 				in vec2 v_tex;
+ 				in vec4 v_col;
+@@ -33,9 +37,9 @@ internal static class ShaderDefaults
+ 				void main(void)
+ 				{
+ 					vec4 color = texture(u_texture, v_tex);
+-					o_color = 
+-						v_type.x * color * v_col + 
+-						v_type.y * color.a * v_col + 
++					o_color =
++						v_type.x * color * v_col +
++						v_type.y * color.a * v_col +
+ 						v_type.z * v_col;
+ 				}"
+ 		}
+diff --git a/Framework/Graphics/Target.cs b/Framework/Graphics/Target.cs
+index d9aa1b6..85a3119 100644
+--- a/Framework/Graphics/Target.cs
++++ b/Framework/Graphics/Target.cs
+@@ -63,7 +63,7 @@ public class Target : IResource
+ 		Bounds = new RectInt(0, 0, Width, Height);
+ 
+ 		var textures = new List<Texture>();
+-		for (int i = 0; i < attachments.Length; i++)
++		for (int i = 0; i < attachments.Length; i ++)
+ 		{
+ 			var ptr = Platform.FosterTargetGetAttachment(resource, i);
+ 			textures.Add(new Texture(ptr, width, height, attachments[i]));
+@@ -89,7 +89,7 @@ public class Target : IResource
+ 	/// <summary>
+ 	/// Clears the Target
+ 	/// </summary>
+-	public unsafe void Clear(Color color, float depth, int stencil, ClearMask mask)
++	public void Clear(Color color, float depth, int stencil, ClearMask mask)
+ 	{
+ 		if (IsDisposed)
+ 			throw new Exception("Resource is Disposed");
+@@ -103,8 +103,8 @@ public class Target : IResource
+ 			stencil = stencil,
+ 			mask = mask
+ 		};
+-
+-		Platform.FosterClear(&clear);
++		
++		Platform.FosterClear(ref clear);
+ 	}
+ 
+ 	/// <summary>
+diff --git a/Framework/Graphics/Texture.cs b/Framework/Graphics/Texture.cs
+index 530aa43..6f021fe 100644
+--- a/Framework/Graphics/Texture.cs
++++ b/Framework/Graphics/Texture.cs
+@@ -1,5 +1,4 @@
+ using System.Diagnostics;
+-using System.Runtime.CompilerServices;
+ using System.Runtime.InteropServices;
+ 
+ namespace Foster.Framework;
+@@ -110,13 +109,13 @@ public class Texture : IResource
+ 		if (IsDisposed)
+ 			throw new Exception("Resource is Disposed");
+ 		
+-		if (Unsafe.SizeOf<T>() * data.Length < MemorySize)
++		if (Marshal.SizeOf<T>() * data.Length < MemorySize)
+ 			throw new Exception("Data Buffer is smaller than the Size of the Texture");
+ 
+ 		fixed (byte* ptr = MemoryMarshal.AsBytes(data))
+ 		{
+-			int length = Unsafe.SizeOf<T>()  * data.Length;
+-			Platform.FosterTextureSetData(resource, ptr, length);
++			int length = Marshal.SizeOf<T>()  * data.Length;
++			Platform.FosterTextureSetData(resource, new nint(ptr), length);
+ 		}
+ 	}
+ 
+@@ -128,13 +127,13 @@ public class Texture : IResource
+ 		if (IsDisposed)
+ 			throw new Exception("Resource is Disposed");
+ 
+-		if (Unsafe.SizeOf<T>() * data.Length < MemorySize)
++		if (Marshal.SizeOf<T>() * data.Length < MemorySize)
+ 			throw new Exception("Data Buffer is smaller than the Size of the Texture");
+ 
+ 		fixed (byte* ptr = MemoryMarshal.AsBytes(data))
+ 		{
+-			int length = Unsafe.SizeOf<T>() * data.Length;
+-			Platform.FosterTextureGetData(resource, ptr, length);
++			int length = Marshal.SizeOf<T>() * data.Length;
++			Platform.FosterTextureGetData(resource, new nint(ptr), length);
+ 		}
+ 	}
+ 
+diff --git a/Framework/Graphics/VertexFormat.cs b/Framework/Graphics/VertexFormat.cs
+index 951347c..8fdddb7 100644
+--- a/Framework/Graphics/VertexFormat.cs
++++ b/Framework/Graphics/VertexFormat.cs
+@@ -1,5 +1,4 @@
+ using System.Diagnostics.CodeAnalysis;
+-using System.Runtime.CompilerServices;
+ using System.Runtime.InteropServices;
+ 
+ namespace Foster.Framework;
+@@ -32,7 +31,7 @@ public readonly struct VertexFormat
+ 
+ 	public static VertexFormat Create<T>(params Element[] elements) where T : struct
+ 	{
+-		return new VertexFormat(Unsafe.SizeOf<T>(), elements);
++		return new VertexFormat(Marshal.SizeOf<T>(), elements);
+ 	}
+ 
+ 	public static bool operator ==(VertexFormat a, VertexFormat b)
+@@ -46,4 +45,4 @@ public readonly struct VertexFormat
+ 
+ 	public override int GetHashCode()
+ 		=> HashCode.Combine(Elements, Stride);
+-}
++}
+\ No newline at end of file
+diff --git a/Framework/Images/Image.cs b/Framework/Images/Image.cs
+index 3018751..8907323 100644
+--- a/Framework/Images/Image.cs
++++ b/Framework/Images/Image.cs
+@@ -32,8 +32,8 @@ public class Image : IDisposable
+ 	/// <summary>
+ 	/// Bounds of the Image
+ 	/// </summary>
+-	public RectInt Bounds => new(0, 0, Width, Height);
+-
++	public RectInt Bounds => new (0, 0, Width, Height);
++	
+ 	/// <summary>
+ 	/// Gets a Span of the pixel data held by the Image.
+ 	/// </summary>
+@@ -67,13 +67,13 @@ public class Image : IDisposable
+ 
+ 	}
+ 
+-	public Image(int width, int height, Color fill)
++	public Image(int width, int height, Color fill) 
+ 		: this(width, height, new Color[width * height])
+ 	{
+ 		unsafe
+ 		{
+ 			Color* pixels = (Color*)ptr.ToPointer();
+-			for (int i = 0, n = width * height; i < n; i++)
++			for (int i = 0, n = width * height; i < n; i ++)
+ 				pixels[i] = fill;
+ 		}
+ 	}
+@@ -110,15 +110,13 @@ public class Image : IDisposable
+ 		stream.Read(data);
+ 
+ 		// load image from byte data
+-		nint mem;
++		IntPtr mem;
+ 		int w, h;
+ 		fixed (byte* it = data)
+-		{
+-			mem = Platform.FosterImageLoad(it, data.Length, out w, out h);
+-		}
++			mem = Platform.FosterImageLoad(new nint(it), data.Length, out w, out h);
+ 
+ 		// returns invalid ptr if unable to load
+-		if (mem == 0)
++		if (mem == IntPtr.Zero)
+ 			throw new Exception("Failed to load Image");
+ 
+ 		// update properties
+@@ -147,7 +145,6 @@ public class Image : IDisposable
+ 		ptr = new();
+ 		unmanaged = false;
+ 		Width = Height = 0;
+-		GC.SuppressFinalize(this);
+ 	}
+ 
+ 	/// <summary>
+@@ -184,9 +181,8 @@ public class Image : IDisposable
+ 		Write(stream, ImageWriteFormat.Qoi);
+ 	}
+ 
+-	private unsafe void Write(Stream stream, ImageWriteFormat format)
++	private void Write(Stream stream, ImageWriteFormat format)
+ 	{
+-		[UnmanagedCallersOnly]
+ 		static unsafe void Write(IntPtr context, IntPtr data, int size)
+ 		{
+ 			var stream = GCHandle.FromIntPtr(context).Target as Stream;
+@@ -195,7 +191,7 @@ public class Image : IDisposable
+ 		}
+ 
+ 		GCHandle handle = GCHandle.Alloc(stream);
+-		Platform.FosterImageWrite(&Write, GCHandle.ToIntPtr(handle), format, Width, Height, ptr);
++		Platform.FosterImageWrite(Write, GCHandle.ToIntPtr(handle), format, Width, Height, ptr);
+ 		handle.Free();
+ 	}
+ 
+@@ -227,13 +223,16 @@ public class Image : IDisposable
+ 	/// Get the color of a pixel.
+ 	/// </summary>
+ 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+-	public unsafe Color GetPixel(int x, int y)
++	public Color GetPixel(int x, int y)
+ 	{
+ 		if (x < 0 || y < 0 || x >= Width || y >= Height)
+ 			throw new IndexOutOfRangeException();
+ 
+-		Color* pixels = (Color*)ptr;
+-		return pixels[x + y * Width];
++		unsafe
++		{
++			Color* pixels = (Color*)ptr;
++			return pixels[x + y * Width];
++		}
+ 	}
+ 
+ 	/// <summary>
+@@ -298,13 +297,13 @@ public class Image : IDisposable
+ 		Debug.Assert(sourcePixels.Length >= sourceWidth * sourceHeight);
+ 
+ 		var target = new RectInt(destination.X, destination.Y, sourceRect.Width, sourceRect.Height);
+-
++		
+ 		var dst = Bounds.OverlapRect(in target);
+ 		if (dst.Width <= 0 || dst.Height <= 0)
+ 			return;
+ 
+ 		var p = sourceRect.TopLeft + (dst.TopLeft - target.TopLeft);
+-
++		
+ 		fixed (Color* sourcePtr = sourcePixels)
+ 		{
+ 			var sourceEnd = sourcePtr + sourceWidth * sourceHeight;
+@@ -326,7 +325,7 @@ public class Image : IDisposable
+ 				}
+ 				else
+ 				{
+-					for (int i = 0; i < len; i++)
++					for (int i = 0; i < len; i ++)
+ 						dstPtr[i] = blend(srcPtr[i], dstPtr[i]);
+ 				}
+ 			}
+diff --git a/Framework/Platform.cs b/Framework/Platform.cs
+index a2fde1b..4f6b7e5 100644
+--- a/Framework/Platform.cs
++++ b/Framework/Platform.cs
+@@ -1,19 +1,20 @@
+-﻿using System.Runtime.InteropServices;
++﻿using System.Runtime.CompilerServices;
++using System.Runtime.InteropServices;
+ using System.Text;
+ 
+ namespace Foster.Framework;
+ 
+-internal static partial class Platform
++internal static class Platform
+ {
+ 	public const string DLL = "FosterPlatform";
+ 
+ 	[Flags]
+ 	public enum FosterFlags
+ 	{
+-		Fullscreen = 1 << 0,
+-		Vsync = 1 << 1,
+-		Resizable = 1 << 2,
+-		MouseVisible = 1 << 3,
++		Fullscreen    = 1 << 0,
++		Vsync         = 1 << 1,
++		Resizable     = 1 << 2,
++		MouseVisible  = 1 << 3,
+ 	}
+ 
+ 	public enum FosterEventType : int
+@@ -31,6 +32,12 @@ internal static partial class Platform
+ 		ControllerAxis
+ 	}
+ 
++	// [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
++	// public delegate void FosterLogFn(IntPtr msg, int type);
++	
++	[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
++	public delegate void FosterWriteFn(IntPtr context, IntPtr data, int size);
++
+ 	[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+ 	public struct FosterDesc
+ 	{
+@@ -102,7 +109,7 @@ internal static partial class Platform
+ 	[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+ 	public struct FosterVertexFormat
+ 	{
+-		public nint elements;
++		public IntPtr elements;
+ 		public int elementCount;
+ 		public int stride;
+ 	}
+@@ -111,7 +118,7 @@ internal static partial class Platform
+ 	public struct FosterUniformInfo
+ 	{
+ 		public int index;
+-		public nint name;
++		public IntPtr name;
+ 		public UniformType type;
+ 		public int arrayElements;
+ 	}
+@@ -134,9 +141,9 @@ internal static partial class Platform
+ 	[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+ 	public struct FosterDrawCommand
+ 	{
+-		public nint target;
+-		public nint mesh;
+-		public nint shader;
++		public IntPtr target;
++		public IntPtr mesh;
++		public IntPtr shader;
+ 		public int hasViewport;
+ 		public int hasScissor;
+ 		public FosterRect viewport;
+@@ -153,7 +160,7 @@ internal static partial class Platform
+ 	[StructLayout(LayoutKind.Sequential, Pack = 1, CharSet = CharSet.Ansi)]
+ 	public struct FosterClearCommand
+ 	{
+-		public nint target;
++		public IntPtr target;
+ 		public FosterRect clip;
+ 		public Color color;
+ 		public float depth;
+@@ -161,18 +168,18 @@ internal static partial class Platform
+ 		public ClearMask mask;
+ 	}
+ 
+-	public static unsafe string ParseUTF8(nint s)
++	public static unsafe string ParseUTF8(IntPtr s)
+ 	{
+-		if (s == 0)
++		if (s == IntPtr.Zero)
+ 			return string.Empty;
+ 
+-		byte* ptr = (byte*)s;
++		byte* ptr = (byte*) s;
+ 		while (*ptr != 0)
+ 			ptr++;
+ 		return Encoding.UTF8.GetString((byte*)s, (int)(ptr - (byte*)s));
+ 	}
+ 
+-	public static unsafe nint ToUTF8(in string str)
++	public static unsafe IntPtr ToUTF8(in string str)
+ 	{
+ 		var count = Encoding.UTF8.GetByteCount(str) + 1;
+ 		var ptr = Marshal.AllocHGlobal(count);
+@@ -182,13 +189,13 @@ internal static partial class Platform
+ 		return ptr;
+ 	}
+ 
+-	public static void FreeUTF8(nint ptr)
++	public static void FreeUTF8(IntPtr ptr)
+ 	{
+ 		Marshal.FreeHGlobal(ptr);
+ 	}
+ 
+-	[UnmanagedCallersOnly]
+-	private static void HandleLog(nint msg, int type)
++	[UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
++	private static void HandleLog(IntPtr msg, int type)
+ 	{
+ 		switch (type)
+ 		{
+@@ -203,117 +210,118 @@ internal static partial class Platform
+ 	{
+ 		// This is done in this way so that the delegate is compatible with WASM/Emscripten,
+ 		// which do not accept normal delegates (only unmanaged function pointer ones like this) 
+-		FosterSetLogCallback(&HandleLog, 0);
++		delegate* unmanaged[Cdecl]<IntPtr, int, void> fn = &HandleLog;
++		FosterSetLogCallback((IntPtr)fn, 0);
+ 	}
+ 
+-	[LibraryImport(DLL)]
+-	public static unsafe partial void FosterSetLogCallback(delegate* unmanaged<nint, int, void> logFn, int level);
+-	[LibraryImport(DLL)]
+-	public static partial void FosterStartup(FosterDesc desc);
+-	[LibraryImport(DLL)]
+-	public static partial void FosterBeginFrame();
+-	[LibraryImport(DLL)]
+-	public static partial byte FosterPollEvents(out FosterEvent fosterEvent);
+-	[LibraryImport(DLL)]
+-	public static partial void FosterEndFrame();
+-	[LibraryImport(DLL)]
+-	public static partial void FosterShutdown();
+-	[LibraryImport(DLL)]
+-	public static partial byte FosterIsRunning();
+-	[LibraryImport(DLL, StringMarshalling = StringMarshalling.Utf8)]
+-	public static partial void FosterSetTitle(string title);
+-	[LibraryImport(DLL)]
+-	public static partial void FosterSetSize(int width, int height);
+-	[LibraryImport(DLL)]
+-	public static partial void FosterGetSize(out int width, out int height);
+-	[LibraryImport(DLL)]
+-	public static partial void FosterGetSizeInPixels(out int width, out int height);
+-	[LibraryImport(DLL)]
+-	public static partial void FosterGetDisplaySize(out int width, out int height);
+-	[LibraryImport(DLL)]
+-	public static partial void FosterSetFlags(FosterFlags flags);
+-	[LibraryImport(DLL)]
+-	public static partial void FosterSetCentered();
+-	[LibraryImport(DLL)]
+-	public static partial nint FosterGetUserPath();
+-	[LibraryImport(DLL, StringMarshalling = StringMarshalling.Utf8)]
+-	public static partial void FosterSetClipboard(string ptr);
+-	[LibraryImport(DLL)]
+-	public static partial nint FosterGetClipboard();
+-	[LibraryImport(DLL)]
+-	public static partial byte FosterGetFocused();
+-	[LibraryImport(DLL)]
+-	public static unsafe partial nint FosterImageLoad(void* memory, int length, out int w, out int h);
+-	[LibraryImport(DLL)]
+-	public static partial void FosterImageFree(nint data);
+-	[LibraryImport(DLL)]
+-	public static unsafe partial byte FosterImageWrite(delegate* unmanaged<nint, nint, int, void> func, IntPtr context, ImageWriteFormat format, int w, int h, IntPtr data);
+-	[LibraryImport(DLL)]
+-	public static partial nint FosterFontInit(nint data, int length);
+-	[LibraryImport(DLL)]
+-	public static partial void FosterFontGetMetrics(nint font, out int ascent, out int descent, out int linegap);
+-	[LibraryImport(DLL)]
+-	public static partial int FosterFontGetGlyphIndex(nint font, int codepoint);
+-	[LibraryImport(DLL)]
+-	public static partial float FosterFontGetScale(nint font, float size);
+-	[LibraryImport(DLL)]
+-	public static partial float FosterFontGetKerning(nint font, int glyph1, int glyph2, float scale);
+-	[LibraryImport(DLL)]
+-	public static partial void FosterFontGetCharacter(nint font, int glyph, float scale, out int width, out int height, out float advance, out float offsetX, out float offsetY, out int visible);
+-	[LibraryImport(DLL)]
+-	public static partial void FosterFontGetPixels(nint font, nint dest, int glyph, int width, int height, float scale);
+-	[LibraryImport(DLL)]
+-	public static partial void FosterFontFree(nint font);
+-	[LibraryImport(DLL)]
+-	public static partial Renderers FosterGetRenderer();
+-	[LibraryImport(DLL)]
+-	public static partial nint FosterTextureCreate(int width, int height, TextureFormat format);
+-	[LibraryImport(DLL)]
+-	public static unsafe partial void FosterTextureSetData(nint texture, void* data, int length);
+-	[LibraryImport(DLL)]
+-	public static unsafe partial void FosterTextureGetData(nint texture, void* data, int length);
+-	[LibraryImport(DLL)]
+-	public static partial void FosterTextureDestroy(nint texture);
+-	[LibraryImport(DLL)]
+-	public static partial nint FosterTargetCreate(int width, int height, TextureFormat[] formats, int formatCount);
+-	[LibraryImport(DLL)]
+-	public static partial nint FosterTargetGetAttachment(nint target, int index);
+-	[LibraryImport(DLL)]
+-	public static partial void FosterTargetDestroy(nint target);
+-	[DllImport(DLL)]
+-	public static extern nint FosterShaderCreate(ref FosterShaderData data);
+-	[LibraryImport(DLL)]
+-	public static unsafe partial void FosterShaderGetUniforms(IntPtr shader, FosterUniformInfo* output, out int count, int max);
+-	[LibraryImport(DLL)]
+-	public static unsafe partial void FosterShaderSetUniform(IntPtr shader, int index, float* values);
+-	[LibraryImport(DLL)]
+-	public static unsafe partial void FosterShaderSetTexture(IntPtr shader, int index, IntPtr* values);
+-	[LibraryImport(DLL)]
+-	public static unsafe partial void FosterShaderSetSampler(IntPtr shader, int index, TextureSampler* values);
+-	[LibraryImport(DLL)]
+-	public static partial void FosterShaderDestroy(IntPtr shader);
+-	[LibraryImport(DLL)]
+-	public static partial nint FosterMeshCreate();
+-	[LibraryImport(DLL)]
+-	public static partial void FosterMeshSetVertexFormat(nint mesh, ref FosterVertexFormat format);
+-	[LibraryImport(DLL)]
+-	public static partial void FosterMeshSetVertexData(nint mesh, nint data, int dataSize, int dataDestOffset);
+-	[LibraryImport(DLL)]
+-	public static partial void FosterMeshSetIndexFormat(nint mesh, IndexFormat format);
+-	[LibraryImport(DLL)]
+-	public static partial void FosterMeshSetIndexData(nint mesh, nint data, int dataSize, int dataDestOffset);
+-	[LibraryImport(DLL)]
+-	public static partial void FosterMeshDestroy(nint mesh);
+-	[LibraryImport(DLL)]
+-	public static unsafe partial void FosterDraw(FosterDrawCommand* command);
+-	[LibraryImport(DLL)]
+-	public static unsafe partial void FosterClear(FosterClearCommand* command);
++	[DllImport(DLL)]
++	public static extern void FosterSetLogCallback(IntPtr logFn, int level);
++	[DllImport(DLL)]
++	public static extern void FosterStartup(FosterDesc desc);
++	[DllImport(DLL)]
++	public static extern void FosterBeginFrame();
++	[DllImport(DLL)]
++	public static extern byte FosterPollEvents(out FosterEvent fosterEvent);
++	[DllImport(DLL)]
++	public static extern void FosterEndFrame();
++	[DllImport(DLL)]
++	public static extern void FosterShutdown();
++	[DllImport(DLL)]
++	public static extern byte FosterIsRunning();
++	[DllImport(DLL)]
++	public static extern void FosterSetTitle(string title);
++	[DllImport(DLL)]
++	public static extern void FosterSetSize(int width, int height);
++	[DllImport(DLL)]
++	public static extern void FosterGetSize(out int width, out int height);
++	[DllImport(DLL)]
++	public static extern void FosterGetSizeInPixels(out int width, out int height);
++	[DllImport(DLL)]
++	public static extern void FosterGetDisplaySize(out int width, out int height);
++	[DllImport(DLL)]
++	public static extern void FosterSetFlags(FosterFlags flags);
++	[DllImport(DLL)]
++	public static extern void FosterSetCentered();
++	[DllImport(DLL)]
++	public static extern IntPtr FosterGetUserPath();
++	[DllImport(DLL)]
++	public static extern void FosterSetClipboard(string ptr);
++	[DllImport(DLL)]
++	public static extern IntPtr FosterGetClipboard();
++	[DllImport(DLL)]
++	public static extern byte FosterGetFocused();
++	[DllImport(DLL)]
++	public static extern IntPtr FosterImageLoad(IntPtr memory, int length, out int w, out int h);
++	[DllImport(DLL)]
++	public static extern void FosterImageFree(IntPtr data);
++	[DllImport(DLL)]
++	public static extern byte FosterImageWrite(FosterWriteFn func, IntPtr context, ImageWriteFormat format, int w, int h, IntPtr data);
++	[DllImport(DLL)]
++	public static extern IntPtr FosterFontInit(IntPtr data, int length);
++	[DllImport(DLL)]
++	public static extern void FosterFontGetMetrics(IntPtr font, out int ascent, out int descent, out int linegap);
++	[DllImport(DLL)]
++	public static extern int FosterFontGetGlyphIndex(IntPtr font, int codepoint);
++	[DllImport(DLL)]
++	public static extern float FosterFontGetScale(IntPtr font, float size);
++	[DllImport(DLL)]
++	public static extern float FosterFontGetKerning(IntPtr font, int glyph1, int glyph2, float scale);
++	[DllImport(DLL)]
++	public static extern void FosterFontGetCharacter(IntPtr font, int glyph, float scale, out int width, out int height, out float advance, out float offsetX, out float offsetY, out int visible);
++	[DllImport(DLL)]
++	public static extern void FosterFontGetPixels(IntPtr font, IntPtr dest, int glyph, int width, int height, float scale);
++	[DllImport(DLL)]
++	public static extern void FosterFontFree(IntPtr font);
++	[DllImport(DLL)]
++	public static extern Renderers FosterGetRenderer();
++	[DllImport(DLL)]
++	public static extern IntPtr FosterTextureCreate(int width, int height, TextureFormat format);
++	[DllImport(DLL)]
++	public static extern void FosterTextureSetData(IntPtr texture, IntPtr data, int length);
++	[DllImport(DLL)]
++	public static extern void FosterTextureGetData(IntPtr texture, IntPtr data, int length);
++	[DllImport(DLL)]
++	public static extern void FosterTextureDestroy(IntPtr texture);
++	[DllImport(DLL)]
++	public static extern IntPtr FosterTargetCreate(int width, int height, TextureFormat[] formats, int formatCount);
++	[DllImport(DLL)]
++	public static extern IntPtr FosterTargetGetAttachment(IntPtr target, int index);
++	[DllImport(DLL)]
++	public static extern void FosterTargetDestroy(IntPtr target);
++	[DllImport(DLL)]
++	public static extern IntPtr FosterShaderCreate(ref FosterShaderData data);
++	[DllImport(DLL)]
++	public static extern unsafe void FosterShaderGetUniforms(IntPtr shader, FosterUniformInfo* output, out int count, int max);
++	[DllImport(DLL)]
++	public static extern unsafe void FosterShaderSetUniform(IntPtr shader, int index, float* values);
++	[DllImport(DLL)]
++	public static extern unsafe void FosterShaderSetTexture(IntPtr shader, int index, IntPtr* values);
++	[DllImport(DLL)]
++	public static extern unsafe void FosterShaderSetSampler(IntPtr shader, int index, TextureSampler* values);
++	[DllImport(DLL)]
++	public static extern void FosterShaderDestroy(IntPtr shader);
++	[DllImport(DLL)]
++	public static extern IntPtr FosterMeshCreate();
++	[DllImport(DLL)]
++	public static extern void FosterMeshSetVertexFormat(IntPtr mesh, ref FosterVertexFormat format);
++	[DllImport(DLL)]
++	public static extern void FosterMeshSetVertexData(IntPtr mesh, IntPtr data, int dataSize, int dataDestOffset);
++	[DllImport(DLL)]
++	public static extern void FosterMeshSetIndexFormat(IntPtr mesh, IndexFormat format);
++	[DllImport(DLL)]
++	public static extern void FosterMeshSetIndexData(IntPtr mesh, IntPtr data, int dataSize, int dataDestOffset);
++	[DllImport(DLL)]
++	public static extern void FosterMeshDestroy(IntPtr mesh);
++	[DllImport(DLL)]
++	public static extern void FosterDraw(ref FosterDrawCommand command);
++	[DllImport(DLL)]
++	public static extern void FosterClear(ref FosterClearCommand command);
+ 
+ 	// Non-Foster Calls:
+-
+-	[LibraryImport(DLL, StringMarshalling = StringMarshalling.Utf8)]
+-	public static partial int SDL_GameControllerAddMapping(string mappingString);
+-
+-	// [LibraryImport(DLL)]
+-	// public static partial void emscripten_set_main_loop(IntPtr action, int fps, bool simulateInfiniteLoop);
++	
++	[DllImport(DLL, CharSet = CharSet.Ansi)]
++	public static extern int SDL_GameControllerAddMapping(string mappingString);
++	
++	// [DllImport(DLL)]
++	// public static extern void emscripten_set_main_loop(IntPtr action, int fps, bool simulateInfiniteLoop);
+ }

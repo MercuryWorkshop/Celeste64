@@ -14,7 +14,16 @@
         <WasmAllowUndefinedSymbols>true</WasmAllowUndefinedSymbols>
     </PropertyGroup>
     <ItemGroup>
+        <NativeFileReference Include="fmod.a">
+            <Visible>false</Visible>
+        </NativeFileReference>
+        <NativeFileReference Include="fmodstudio.a">
+            <Visible>false</Visible>
+        </NativeFileReference>
         <NativeFileReference Include="SDL2.a">
+            <Visible>false</Visible>
+        </NativeFileReference>
+        <NativeFileReference Include="FosterPlatform.a">
             <Visible>false</Visible>
         </NativeFileReference>
         <EmccExportedRuntimeMethod Include="SDL">
@@ -29,9 +38,9 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="FosterFramework" Version="0.1.18-alpha" />
         <PackageReference Include="SharpGLTF.Runtime" Version="1.0.0-alpha0031" />
         <PackageReference Include="Sledge.Formats.Map" Version="1.1.5" />
+        <ProjectReference Include="../Foster/Framework/Foster.Framework.csproj" />
     </ItemGroup>
 </Project>
 

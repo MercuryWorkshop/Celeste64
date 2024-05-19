@@ -34,7 +34,8 @@ public static class Audio
 
 		// Dynamically load FMOD binaries. For some reason this is the only way
 		// I could make M1 Macs properly load the FMOD .dylib files ???
-		LoadDynamicLibraries();
+        // Not needed on WASM
+        // LoadDynamicLibraries();
 
 		// make a core API call before initializing the Studio API
 		FMOD.Memory.GetStats(out _, out _);
